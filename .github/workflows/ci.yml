@@ -3,15 +3,16 @@ on:
   push:
   pull_request:
 
-# Useful for CodeQL + artifact upload
+# needed for CodeQL & SARIF uploads
 permissions:
   contents: read
   security-events: write
 
 jobs:
-  # --- BONUS: Code scanning (skipped when running with nektos/act) ---
+  # --- BONUS: Code scanning (skipped under act) ---
   codeql:
-    if: ${{ !env.ACT }}
+    # use string comparison instead of "!env.ACT"
+    if: ${{ env.ACT == '' }}
     name: Code Scanning (CodeQL)
     runs-on: ubuntu-latest
     steps:
@@ -22,12 +23,11 @@ jobs:
       - uses: github/codeql-action/analyze@v3
 
   trivy:
-    if: ${{ !env.ACT }}
+    if: ${{ env.ACT == '' }}
     name: Code & Image Scan (Trivy)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # Scan filesystem (source) for vulns/misconfig
       - name: Trivy FS scan (repo)
         uses: aquasecurity/trivy-action@0.28.0
         with:
@@ -41,7 +41,7 @@ jobs:
         with:
           sarif_file: trivy-fs.sarif
 
-  # --- Build images (used by later jobs) ---
+  # --- Build images ---
   build:
     name: Build images
     runs-on: ubuntu-latest
@@ -56,17 +56,19 @@ jobs:
 
       # Save images only on GitHub (skip under act)
       - name: Save images as artifacts
-        if: ${{ !env.ACT }}
+        if: ${{ env.ACT == '' }}
         run: |
           docker save resqpost-backend:ci | gzip > backend-image.tar.gz
           docker save resqpost-frontend:ci | gzip > frontend-image.tar.gz
+
       - uses: actions/upload-artifact@v4
-        if: ${{ !env.ACT }}
+        if: ${{ env.ACT == '' }}
         with:
           name: backend-image
           path: backend-image.tar.gz
+
       - uses: actions/upload-artifact@v4
-        if: ${{ !env.ACT }}
+        if: ${{ env.ACT == '' }}
         with:
           name: frontend-image
           path: frontend-image.tar.gz
@@ -78,6 +80,7 @@ jobs:
     needs: build
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -107,7 +110,7 @@ jobs:
           fi
 
       - uses: actions/upload-artifact@v4
-        if: ${{ !env.ACT }}
+        if: ${{ env.ACT == '' }}
         with:
           name: backend-coverage-xml
           path: backend/coverage.xml
@@ -119,6 +122,7 @@ jobs:
     needs: build
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
@@ -145,7 +149,7 @@ jobs:
           npm test -- $ARGS
 
       - uses: actions/upload-artifact@v4
-        if: ${{ !env.ACT }}
+        if: ${{ env.ACT == '' }}
         with:
           name: frontend-coverage
           path: frontend/coverage
@@ -170,22 +174,12 @@ jobs:
             echo "No infra/cfn directory; skipping CFN validation."
           fi
 
-      - name: Validate Terraform (if infra/terraform exists)
-        shell: bash
-        run: |
-          set -e
-          if [ -d infra/terraform ]; then
-            echo "Setting up Terraform via action..."
-            echo "::group::setup-terraform"
-            echo "::endgroup::"
-          else
-            echo "No infra/terraform directory; skipping TF validation."
-          fi
-      - name: setup-terraform action
+      - name: setup-terraform
         if: ${{ hashFiles('infra/terraform/**') != '' }}
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.5.7
+
       - name: Terraform validate
         if: ${{ hashFiles('infra/terraform/**') != '' }}
         run: (cd infra/terraform && terraform init -input=false && terraform validate)
@@ -210,29 +204,31 @@ jobs:
 
       # GitHub path: download artifacts; act path: rebuild locally
       - name: Download backend image
-        if: ${{ !env.ACT }}
+        if: ${{ env.ACT == '' }}
         uses: actions/download-artifact@v4
         with:
           name: backend-image
+
       - name: Load backend image
-        if: ${{ !env.ACT }}
+        if: ${{ env.ACT == '' }}
         run: zcat backend-image.tar.gz | docker load
 
       - name: Download frontend image
-        if: ${{ !env.ACT }}
+        if: ${{ env.ACT == '' }}
         uses: actions/download-artifact@v4
         with:
           name: frontend-image
+
       - name: Load frontend image
-        if: ${{ !env.ACT }}
+        if: ${{ env.ACT == '' }}
         run: zcat frontend-image.tar.gz | docker load
 
       - name: Build backend image (act fallback)
-        if: ${{ env.ACT }}
+        if: ${{ env.ACT != '' }}
         run: docker build -t resqpost-backend:ci ./backend
 
       - name: Build frontend image (act fallback)
-        if: ${{ env.ACT }}
+        if: ${{ env.ACT != '' }}
         run: docker build -t resqpost-frontend:ci ./frontend
 
       - name: Write docker-compose.ci.yml
@@ -264,7 +260,6 @@ jobs:
                   condition: service_healthy
               ports:
                 - "5000:5000"
-              # Use stdlib urllib so we don't need curl inside the image
               healthcheck:
                 test:
                   - CMD-SHELL
@@ -284,12 +279,11 @@ jobs:
             frontend:
               image: resqpost-frontend:ci
               ports:
-                - "3000:80"   # nginx serves on 80 inside
+                - "3000:80"
               environment:
                 REACT_APP_API_URL: http://backend:5000
               depends_on:
                 - backend
-              # BusyBox wget exists in nginx:alpine
               healthcheck:
                 test: ["CMD-SHELL", "wget -qO- http://localhost/ >/dev/null 2>&1 || exit 1"]
                 interval: 10s
