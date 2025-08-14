@@ -1,4 +1,4 @@
-#!/mnt/c/Users/akshu/Downloads/Capstone/Capestone-ResQPost/.venv/bin/python
+#!/home/akshu/projects/Capestone-ResQPost/.venv/bin/python
 
 import sys
 import json

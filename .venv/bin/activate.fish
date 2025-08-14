@@ -33,7 +33,7 @@ end
 # Unset irrelevant variables.
 deactivate nondestructive
 
-set -gx VIRTUAL_ENV /mnt/c/Users/akshu/Downloads/Capstone/Capestone-ResQPost/.venv
+set -gx VIRTUAL_ENV /home/akshu/projects/Capestone-ResQPost/.venv
 
 set -gx _OLD_VIRTUAL_PATH $PATH
 set -gx PATH "$VIRTUAL_ENV/"bin $PATH

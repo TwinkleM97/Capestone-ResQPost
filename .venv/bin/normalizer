@@ -1,4 +1,4 @@
-#!/mnt/c/Users/akshu/Downloads/Capstone/Capestone-ResQPost/.venv/bin/python
+#!/home/akshu/projects/Capestone-ResQPost/.venv/bin/python
 import sys
 from charset_normalizer.cli import cli_detect
 if __name__ == '__main__':
