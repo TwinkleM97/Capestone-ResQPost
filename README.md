@@ -62,8 +62,10 @@ If you're on Windows, use **VS Code Remote – WSL** (much faster than `/mnt/c` 
 
 1. Copy the project into Linux:
    ```bash
+   sudo apt-get install pv
+
    mkdir -p ~/projects
-   rsync -a "/mnt/c/Users/<you>/Downloads/Capstone/Capestone-ResQPost/"      ~/projects/Capestone-ResQPost/
+   rsync -a --info=progress2 "Path-to-ResQPost Folder" ~/projects/Capestone-ResQPost/ | pv -s $(du -sb "/mnt/c/Users/ajoshi/NextcloudV2/Downloads/Capstone Project/Capestone-ResQPost" | awk '{print $1}')
    cd ~/projects/Capestone-ResQPost
    ```
 2. Open in VS Code (WSL window):
