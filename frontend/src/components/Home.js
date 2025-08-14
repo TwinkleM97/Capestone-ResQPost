@@ -1,4 +1,5 @@
 import React from 'react';
+import hero from '../assets/finding-missing-person-scaled.jpg';
 
 const Home = () => {
   const stats = {
@@ -10,12 +11,22 @@ const Home = () => {
   return (
     <div>
       {/* Hero Section */}
-      <section 
-        className="hero-section text-white d-flex align-items-center"
+      <section
+        className="hero-section d-flex align-items-center"
         style={{
-          backgroundImage: 'linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url("https://images.unsplash.com/photo-1601758228041-f3b2795255f1?ixlib=rb-4.0.3")',
+          /* make hero use white typography ONLY here */
+          '--heading-color': '#ffffffff',
+          '--body-color': '#ffffff',
+
+          backgroundImage: `
+            linear-gradient(rgba(0,0,0,0.28), rgba(0,0,0,0.28)),
+            linear-gradient(rgba(255,140,0,0.38), rgba(255,140,0,0.38)),
+            url(${hero})
+          `,
+          backgroundBlendMode: 'normal, multiply, normal',
           backgroundSize: 'cover',
-          backgroundPosition: 'center',
+          backgroundPosition: 'center 45%',
+          backgroundRepeat: 'no-repeat',
           height: '70vh'
         }}
       >
@@ -26,12 +37,12 @@ const Home = () => {
                 <small className="fw-bold">MISSING</small>
               </div>
               
-              <h1 className="display-4 fw-bold mb-4">
+              <h1 className="display-4 fw-bold mb-4 text-white">
                 Reuniting Loved Ones,<br />
                 One Alert at a Time
               </h1>
-              
-              <p className="lead mb-4">
+
+              <p className="lead mb-4 text-white">
                 Post and discover missing pet and person alerts in real-time, 
                 powered by your community.
               </p>

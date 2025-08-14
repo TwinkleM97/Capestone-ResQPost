@@ -71,7 +71,6 @@ const AlertList = ({ searchTerm }) => {
   const [alerts, setAlerts] = useState([]);
   const [filteredAlerts, setFilteredAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [filters, setFilters] = useState({
     category: 'all',
     resolved: 'all',
@@ -120,11 +119,9 @@ const AlertList = ({ searchTerm }) => {
       if (response.data.success) {
         setAlerts(response.data.alerts);
       } else {
-        setError('Failed to load alerts');
       }
     } catch (err) {
       console.error('Error fetching alerts:', err);
-      setError('Failed to load alerts. Please try again later.');
     } finally {
       setLoading(false);
     }

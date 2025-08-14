@@ -227,7 +227,7 @@ h1.page-title,            /* if you add this class anywhere */
 /* Body text in values under those labels */
 .body-lg, .meta-value, .card-text, p, li{
   font-size:1.25rem;      
-  color: #fff;
+  color: #000000;
 }
 
 /* Muted helper text */
@@ -252,3 +252,16 @@ h1.page-title,            /* if you add this class anywhere */
 @media (min-width:768px){
   .meta-row .col-md-4{ margin-bottom:0; }
 }
+.clickable { cursor: pointer; }
+.position-relative .map-chip{
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  background: rgba(13,110,253,.92);
+  color: #fff;
+  padding: .4rem .7rem;
+  border-radius: .5rem;
+  font-weight: 600;
+  font-size: .9rem;
+}
+.position-relative .map-chip:hover{ filter: brightness(1.05); }

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
+import ChatBox from './Chatbox';
 
 const normalizeImg = (url) => {
   if (!url) return '';
@@ -14,7 +15,8 @@ const normalizeImg = (url) => {
 // Treat backend timestamps as UTC if they don't already include a trailing Z
 const parseUTC = (s) => {
   if (!s) return null;
-  return new Date(s.endsWith('Z') ? s : `${s}Z`);
+  const dateString = s.endsWith('Z') ? s : `${s}Z`;
+  return new Date(dateString);
 };
 
 const formatDate = (s) => {
@@ -77,7 +79,9 @@ const AlertDetail = () => {
   if (loading) {
     return (
       <div className="container py-5 text-center">
-        <div className="loading-spinner mx-auto mb-3"></div>
+        <output className="spinner-border text-primary mb-3">
+          <span className="visually-hidden">Loading...</span>
+        </output>
         <p className="text-muted">Loading alert details...</p>
       </div>
     );
@@ -99,6 +103,12 @@ const AlertDetail = () => {
   }
 
   const imgSrc = normalizeImg(alert.image_url);
+
+  // Build a map link if we have coordinates
+  const hasCoords = alert.latitude != null && alert.longitude != null;
+  const mapHref = hasCoords
+    ? `/map?lat=${encodeURIComponent(alert.latitude)}&lng=${encodeURIComponent(alert.longitude)}&q=${encodeURIComponent(alert.title)}`
+    : null;
 
   return (
     <div className="container py-5">
@@ -125,26 +135,46 @@ const AlertDetail = () => {
             </a>
           </div>
 
-          <h1 className="h-display mb-3">{alert.title}</h1>
+          <h1 className="h2 mb-3">{alert.title}</h1>
 
           {imgSrc && (
-            <div className="mb-4">
-              <img
-                src={imgSrc}
-                className="alert-detail-image w-100"
-                alt={alert.title}
-                onError={(e) => {
-                  // hide the image if it 404s to avoid a broken icon
-                  e.currentTarget.style.display = 'none';
-                }}
-              />
+            <div className="position-relative mb-4">
+              {hasCoords ? (
+                <a
+                  href={mapHref}
+                  title="View last location on map"
+                  aria-label="View last location on map"
+                >
+                  <img
+                    src={imgSrc}
+                    className="img-fluid rounded w-100"
+                    alt={alert.title}
+                    style={{ maxHeight: '400px', objectFit: 'cover', cursor: 'pointer' }}
+                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                  />
+                  <span 
+                    className="position-absolute top-0 end-0 m-2 badge bg-primary"
+                    style={{ fontSize: '0.75rem' }}
+                  >
+                    <i className="bi bi-geo-alt-fill me-1"></i> View on Map
+                  </span>
+                </a>
+              ) : (
+                <img
+                  src={imgSrc}
+                  className="img-fluid rounded w-100"
+                  alt={alert.title}
+                  style={{ maxHeight: '400px', objectFit: 'cover' }}
+                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                />
+              )}
             </div>
           )}
 
           <div className="row mb-4">
             <div className="col-md-4">
-              <h6 className="fw-semibold mb-1">Location</h6>
-              <p className="body-lg">
+              <h6 className="fw-bold text-muted">Location</h6>
+              <p className="fs-6">
                 <i className="bi bi-geo-alt-fill text-primary me-2"></i>
                 {alert.location}
               </p>
@@ -152,7 +182,7 @@ const AlertDetail = () => {
 
             <div className="col-md-4">
               <h6 className="fw-bold text-muted">Date Reported</h6>
-              <p className="fs-5">
+              <p className="fs-6">
                 <i className="bi bi-calendar-fill text-primary me-2"></i>
                 {formatDate(alert.created_at)}
               </p>
@@ -160,7 +190,7 @@ const AlertDetail = () => {
 
             <div className="col-md-4">
               <h6 className="fw-bold text-muted">Status</h6>
-              <p className="fs-5">
+              <p className="fs-6">
                 <i
                   className={`bi ${
                     alert.is_resolved ? 'bi-check-circle-fill text-success' : 'bi-clock-fill text-warning'
@@ -172,8 +202,8 @@ const AlertDetail = () => {
           </div>
 
           <div className="mb-4">
-            <h4 className="h-1 mb-3">Description</h4>
-            <p className="body-lg">{alert.description}</p>
+            <h4 className="h4 mb-3">Description</h4>
+            <p className="fs-6 lh-base">{alert.description}</p>
           </div>
 
           {!alert.is_resolved && (
@@ -185,7 +215,11 @@ const AlertDetail = () => {
               >
                 {resolving ? (
                   <>
-                    <span className="loading-spinner me-2"></span>
+                    <output>
+                      <span className="spinner-border spinner-border-sm me-2">
+                        <span className="visually-hidden">Loading...</span>
+                      </span>
+                    </output>
                     <span>Marking as Found...</span>
                   </>
                 ) : (
@@ -197,12 +231,15 @@ const AlertDetail = () => {
               </button>
             </div>
           )}
+
+          {/* Chat Component - Now Visible */}
+          <ChatBox alertId={id} />
         </div>
 
         {/* Sidebar */}
         <div className="col-lg-4">
           {(alert.contact_name || alert.contact_phone || alert.contact_email) && (
-            <div className="card contact-card mb-4">
+            <div className="card mb-4">
               <div className="card-body">
                 <h5 className="card-title fw-bold mb-3">
                   <i className="bi bi-person-fill me-2"></i>{' '}
@@ -221,7 +258,7 @@ const AlertDetail = () => {
                     <strong>Phone:</strong><br />
                     <a
                       href={`tel:${alert.contact_phone}`}
-                      className="text-decoration-none contact-link"
+                      className="text-decoration-none btn btn-outline-primary btn-sm"
                     >
                       <i className="bi bi-telephone-fill me-1"></i>
                       {alert.contact_phone}
@@ -234,7 +271,7 @@ const AlertDetail = () => {
                     <strong>Email:</strong><br />
                     <a
                       href={`mailto:${alert.contact_email}`}
-                      className="text-decoration-none contact-link"
+                      className="text-decoration-none btn btn-outline-primary btn-sm"
                     >
                       <i className="bi bi-envelope-fill me-1"></i>
                       {alert.contact_email}
@@ -245,7 +282,7 @@ const AlertDetail = () => {
             </div>
           )}
 
-          <div className="card">
+          <div className="card mb-4">
             <div className="card-body">
               <h5 className="card-title fw-bold">Share This Alert</h5>
               <p className="card-text text-muted mb-3">
@@ -286,12 +323,17 @@ const AlertDetail = () => {
             </div>
           </div>
 
-          <div className="mt-4 p-3 bg-light rounded">
-            <h6 className="fw-bold mb-2">🚨 Safety Reminder</h6>
-            <p className="small text-muted mb-0">
-              If you have information about this case, please contact the person directly
-              or local authorities. Do not approach if you feel unsafe.
-            </p>
+          <div className="card bg-light">
+            <div className="card-body">
+              <h6 className="fw-bold mb-2">
+                <i className="bi bi-shield-check me-2 text-warning"></i>{' '}
+                Safety Reminder
+              </h6>
+              <p className="small text-muted mb-0">
+                If you have information about this case, please use the chat below or contact 
+                the person directly. Do not approach if you feel unsafe - contact local authorities instead.
+              </p>
+            </div>
           </div>
         </div>
       </div>
