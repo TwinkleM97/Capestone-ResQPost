@@ -45,21 +45,24 @@
       args:
         creates: "{{ venv_dir }}/bin/activate"
 
-    - name: Upgrade pip/setuptools/wheel
+    - name: Upgrade pip/setuptools/wheel (POSIX paths only)
       ansible.builtin.shell: |
         set -e
         . "{{ venv_dir }}/bin/activate"
         python -m pip install -U pip setuptools wheel
-      args: { executable: /bin/bash }
+      args:
+        executable: /bin/bash
 
-    - name: Install backend requirements if present
+    - name: Install backend requirements (backend/requirements.txt preferred)
       ansible.builtin.shell: |
         set -e
         . "{{ venv_dir }}/bin/activate"
-        if [ -f requirements.txt ]; then
-          pip install -r requirements.txt
-        elif [ -f backend/requirements.txt ]; then
+        if [ -f backend/requirements.txt ]; then
           pip install -r backend/requirements.txt
+        elif [ -f requirements.txt ]; then
+          pip install -r requirements.txt
+        else
+          echo "[warn] No requirements.txt found; skipping Python deps"
         fi
       args:
         chdir: "{{ project_root }}"
@@ -171,7 +174,7 @@
     ###########################################################################
     # Frontend build (served via `serve` on :3000)
     ###########################################################################
-    - name: Ensure nvm installed
+    - name: Ensure nvm installed (if missing)
       ansible.builtin.shell: |
         set -e
         if [ ! -s "$HOME/.nvm/nvm.sh" ]; then
@@ -179,19 +182,39 @@
         fi
       args: { executable: /bin/bash }
 
-    - name: Use Node {{ node_version }} with nvm
+    - name: Check if nvm is installed
+      ansible.builtin.stat:
+        path: "{{ lookup('env','HOME') }}/.nvm/nvm.sh"
+      register: nvm_file
+
+    - name: Use Node {{ node_version }} with nvm (if available)
+      when: nvm_file.stat.exists
       ansible.builtin.shell: |
         set -e
         export NVM_DIR="$HOME/.nvm"
         . "$NVM_DIR/nvm.sh"
         nvm install {{ node_version }}
         nvm use {{ node_version }}
-      args: { executable: /bin/bash }
+      args:
+        executable: /bin/bash
 
-    - name: Install frontend deps (ci if lock present)
+    - name: Install frontend deps (nvm if available; prefer npm ci)
       ansible.builtin.shell: |
         set -e
-        export NVM_DIR="$HOME/.nvm"; . "$NVM_DIR/nvm.sh"; nvm use {{ node_version }}
+        if [ -f "$HOME/.nvm/nvm.sh" ]; then
+          export NVM_DIR="$HOME/.nvm"
+          . "$NVM_DIR/nvm.sh"
+          nvm use {{ node_version }}
+        fi
+
+        test -f package.json
+
+        # Ensure react-scripts exists (safety net)
+        if ! grep -q '"react-scripts"' package.json; then
+          echo "[ci] react-scripts not listed; adding devDependency..."
+          npm install --save-dev react-scripts@5
+        fi
+
         if [ -f package-lock.json ]; then
           npm ci || (echo "[warn] npm ci failed; falling back to npm install"; npm install)
         else
@@ -201,12 +224,22 @@
         chdir: "{{ frontend_dir }}"
         executable: /bin/bash
 
-    - name: Build React app
+    - name: Build React app (retry once after clean install)
       ansible.builtin.shell: |
         set -e
-        export NVM_DIR="$HOME/.nvm"; . "$NVM_DIR/nvm.sh"; nvm use {{ node_version }}
+        if [ -f "$HOME/.nvm/nvm.sh" ]; then
+          export NVM_DIR="$HOME/.nvm"
+          . "$NVM_DIR/nvm.sh"
+          nvm use {{ node_version }}
+        fi
         export NODE_OPTIONS=${NODE_OPTIONS:---max-old-space-size=4096}
-        npm run build
+
+        npm run build || (
+          echo "[warn] first build failed; cleaning and retrying..."
+          rm -rf node_modules
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+          npm run build
+        )
       args:
         chdir: "{{ frontend_dir }}"
         executable: /bin/bash
@@ -246,10 +279,14 @@
         chdir: "{{ backend_dir }}"
         executable: /bin/bash
 
-    - name: Start static frontend (serve build on :3000)
+    - name: Start static frontend (serve build on :3000; nvm optional)
       ansible.builtin.shell: |
         set -e
-        export NVM_DIR="$HOME/.nvm"; . "$NVM_DIR/nvm.sh"; nvm use {{ node_version }}
+        if [ -f "$HOME/.nvm/nvm.sh" ]; then
+          export NVM_DIR="$HOME/.nvm"
+          . "$NVM_DIR/nvm.sh"
+          nvm use {{ node_version }}
+        fi
         cd "{{ frontend_dir }}/build"
         nohup npx --yes serve -s . -l 3000 >"{{ logs_dir }}/frontend.out" 2>&1 &
         echo $! > "{{ logs_dir }}/frontend.pid"
