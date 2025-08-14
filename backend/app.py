@@ -18,12 +18,14 @@ from models import db, Alert
 app = Flask(__name__)
 CORS(app)
 
-# Normalize DATABASE_URL (supports sqlite and postgres)
 def _compute_database_url() -> str:
+    """
+    Normalize DATABASE_URL for SQLAlchemy. Defaults to local sqlite file.
+    - Accepts postgres:// and postgresql:// and ensures +psycopg2.
+    """
     default_sqlite = f"sqlite:////{os.path.abspath(os.path.join(os.path.dirname(__file__), 'resqpost.db'))}"
     url = os.environ.get("DATABASE_URL", default_sqlite)
 
-    # normalize postgres prefixes for SQLAlchemy+psycopg2
     if url.startswith("postgres://"):
         url = url.replace("postgres://", "postgresql+psycopg2://", 1)
     elif url.startswith("postgresql://") and "+psycopg2" not in url:
@@ -58,16 +60,9 @@ def _normalize_image_url(url: Optional[str]) -> Optional[str]:
         return url
     if url.startswith("http://") or url.startswith("https://"):
         return url
-    base = request.host_url.rstrip("/")  # e.g. http://127.0.0.1:5000
+    base = request.host_url.rstrip("/")
     path = url if url.startswith("/") else f"/{url}"
     return f"{base}{path}"
-# def _normalize_image_url(url: Optional[str]) -> Optional[str]:
-#     """Ensure local paths are absolute (/uploads/...). Leave http(s) untouched."""
-#     if not url:
-#         return url
-#     if url.startswith("http://") or url.startswith("https://"):
-#         return url
-#     return url if url.startswith("/") else f"/{url}"
 
 def _save_local_bytes(raw_bytes: bytes, original_filename: Optional[str]) -> str:
     """Write bytes to local uploads dir; return /uploads/... URL path."""
@@ -89,6 +84,18 @@ def upload_image(file_storage) -> Optional[str]:
     if not raw_bytes:
         return None
     return _save_local_bytes(raw_bytes, file_storage.filename)
+
+# -----------------------------
+# Basic routes
+# -----------------------------
+@app.get("/")
+def root():
+    return jsonify({"ok": True, "service": "backend"}), 200
+
+@app.get("/api/health")
+def health_check():
+    ts = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    return jsonify({"status": "healthy", "timestamp": ts, "version": "1.0.0"})
 
 # -----------------------------
 # API routes
@@ -225,11 +232,6 @@ def get_nearby_alerts():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
-@app.get("/api/health")
-def health_check():
-    ts = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-    return jsonify({"status": "healthy", "timestamp": ts, "version": "1.0.0"})
-
 @app.get("/uploads/<path:filename>")
 def uploaded_file(filename):
     safe = os.path.normpath(filename).lstrip(os.sep)
@@ -242,15 +244,10 @@ def uploaded_file(filename):
     return resp
 
 # -----------------------------
-# Boot
+# Boot (run only when executed directly)
 # -----------------------------
-with app.app_context():
-    # Ensure the 'alerts' table exists in the *current* database (Postgres or SQLite)
-    db.create_all()
-with app.app_context():
-    db.create_all()
-    print("[DB] Using:", app.config["SQLALCHEMY_DATABASE_URI"])
-
-
 if __name__ == "__main__":
+    with app.app_context():
+        db.create_all()
+        print("[DB] Using:", app.config["SQLALCHEMY_DATABASE_URI"])
     app.run(debug=True, host="0.0.0.0", port=5000)

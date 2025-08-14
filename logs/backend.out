@@ -1,4 +1,3 @@
-[DB] Using: postgresql+psycopg2://postgres:password@127.0.0.1:5434/resqpost
  * Serving Flask app 'app.py'
  * Debug mode: off
 WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
@@ -6,4 +5,6 @@ WARNING: This is a development server. Do not use it in a production deployment.
  * Running on http://127.0.0.1:5000
  * Running on http://172.27.133.27:5000
 Press CTRL+C to quit
-127.0.0.1 - - [14/Aug/2025 01:55:42] "GET /api/alerts HTTP/1.1" 200 -
+127.0.0.1 - - [14/Aug/2025 04:20:01] "GET /api/alerts HTTP/1.1" 200 -
+127.0.0.1 - - [14/Aug/2025 04:20:11] "POST /api/alerts HTTP/1.1" 201 -
+127.0.0.1 - - [14/Aug/2025 04:20:14] "GET /api/alerts HTTP/1.1" 200 -
