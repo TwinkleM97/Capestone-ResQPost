@@ -14,6 +14,7 @@ jobs:
     if: ${{ github.actor != 'nektos/act' }}
     name: Code Scanning (CodeQL)
     runs-on: ubuntu-latest
+    needs: build
     steps:
       - uses: actions/checkout@v4
       - uses: github/codeql-action/init@v3
