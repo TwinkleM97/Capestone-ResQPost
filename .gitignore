@@ -24,3 +24,8 @@ terraform/.terraform.lock.hcl
 .DS_Store
 .vscode/
 .pgdata/
+
+.venv/
+node_modules/
+*.log
+.env
