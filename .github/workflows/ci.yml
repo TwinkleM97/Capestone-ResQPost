@@ -3,16 +3,15 @@ on:
   push:
   pull_request:
 
-# needed for CodeQL & SARIF uploads
+# Needed for SARIF uploads (CodeQL/Trivy)
 permissions:
   contents: read
   security-events: write
 
 jobs:
-  # --- BONUS: Code scanning (skipped under act) ---
+  # --- BONUS: Code scanning (skipped when running under act) ---
   codeql:
-    # use string comparison instead of "!env.ACT"
-    if: ${{ env.ACT == '' }}
+    if: ${{ github.actor != 'nektos/act' }}
     name: Code Scanning (CodeQL)
     runs-on: ubuntu-latest
     steps:
@@ -23,7 +22,7 @@ jobs:
       - uses: github/codeql-action/analyze@v3
 
   trivy:
-    if: ${{ env.ACT == '' }}
+    if: ${{ github.actor != 'nektos/act' }}
     name: Code & Image Scan (Trivy)
     runs-on: ubuntu-latest
     steps:
@@ -54,21 +53,21 @@ jobs:
       - name: Build frontend image
         run: docker build -t resqpost-frontend:ci ./frontend
 
-      # Save images only on GitHub (skip under act)
+      # Only upload artifacts on GitHub (skip under act)
       - name: Save images as artifacts
-        if: ${{ env.ACT == '' }}
+        if: ${{ github.actor != 'nektos/act' }}
         run: |
           docker save resqpost-backend:ci | gzip > backend-image.tar.gz
           docker save resqpost-frontend:ci | gzip > frontend-image.tar.gz
 
       - uses: actions/upload-artifact@v4
-        if: ${{ env.ACT == '' }}
+        if: ${{ github.actor != 'nektos/act' }}
         with:
           name: backend-image
           path: backend-image.tar.gz
 
       - uses: actions/upload-artifact@v4
-        if: ${{ env.ACT == '' }}
+        if: ${{ github.actor != 'nektos/act' }}
         with:
           name: frontend-image
           path: frontend-image.tar.gz
@@ -102,15 +101,15 @@ jobs:
         run: |
           set -e
           ARGS="-q --maxfail=1 --disable-warnings --cov=. --cov-report=term-missing --cov-report=xml:coverage.xml"
-          if [ -n "${ACT:-}" ]; then
-            echo "[ci] ACT detected: allowing empty test suite (does NOT apply on GitHub)."
+          if [ "${GITHUB_ACTOR:-}" = "nektos/act" ]; then
+            echo "[ci] act detected: allowing empty test suite (does NOT apply on GitHub)."
             pytest $ARGS || true
           else
             pytest $ARGS
           fi
 
       - uses: actions/upload-artifact@v4
-        if: ${{ env.ACT == '' }}
+        if: ${{ github.actor != 'nektos/act' }}
         with:
           name: backend-coverage-xml
           path: backend/coverage.xml
@@ -142,14 +141,14 @@ jobs:
         run: |
           set -e
           ARGS="--coverage --watchAll=false"
-          if [ -n "${ACT:-}" ]; then
-            echo "[ci] ACT detected: adding --passWithNoTests"
+          if [ "${GITHUB_ACTOR:-}" = "nektos/act" ]; then
+            echo "[ci] act detected: adding --passWithNoTests"
             ARGS="$ARGS --passWithNoTests"
           fi
           npm test -- $ARGS
 
       - uses: actions/upload-artifact@v4
-        if: ${{ env.ACT == '' }}
+        if: ${{ github.actor != 'nektos/act' }}
         with:
           name: frontend-coverage
           path: frontend/coverage
@@ -174,7 +173,7 @@ jobs:
             echo "No infra/cfn directory; skipping CFN validation."
           fi
 
-      - name: setup-terraform
+      - name: Setup Terraform
         if: ${{ hashFiles('infra/terraform/**') != '' }}
         uses: hashicorp/setup-terraform@v3
         with:
@@ -204,31 +203,31 @@ jobs:
 
       # GitHub path: download artifacts; act path: rebuild locally
       - name: Download backend image
-        if: ${{ env.ACT == '' }}
+        if: ${{ github.actor != 'nektos/act' }}
         uses: actions/download-artifact@v4
         with:
           name: backend-image
 
       - name: Load backend image
-        if: ${{ env.ACT == '' }}
+        if: ${{ github.actor != 'nektos/act' }}
         run: zcat backend-image.tar.gz | docker load
 
       - name: Download frontend image
-        if: ${{ env.ACT == '' }}
+        if: ${{ github.actor != 'nektos/act' }}
         uses: actions/download-artifact@v4
         with:
           name: frontend-image
 
       - name: Load frontend image
-        if: ${{ env.ACT == '' }}
+        if: ${{ github.actor != 'nektos/act' }}
         run: zcat frontend-image.tar.gz | docker load
 
       - name: Build backend image (act fallback)
-        if: ${{ env.ACT != '' }}
+        if: ${{ github.actor == 'nektos/act' }}
         run: docker build -t resqpost-backend:ci ./backend
 
       - name: Build frontend image (act fallback)
-        if: ${{ env.ACT != '' }}
+        if: ${{ github.actor == 'nektos/act' }}
         run: docker build -t resqpost-frontend:ci ./frontend
 
       - name: Write docker-compose.ci.yml
