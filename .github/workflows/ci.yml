@@ -57,14 +57,63 @@ jobs:
           ignore-unfixed: true
           vuln-type: os,library
 
-      - name: Upload SARIF (images)
+      - name: Upload SARIF (backend image)
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: trivy-backend.sarif
-      - name: Upload SARIF (images 2)
+          category: trivy-backend-image   # <-- unique category
+
+      - name: Upload SARIF (frontend image)
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: trivy-frontend.sarif
+          category: trivy-frontend-image  # <-- unique category
+
+
+#   trivy-image:
+#     if: ${{ github.actor != 'nektos/act' }}
+#     name: Trivy Image Scan
+#     runs-on: ubuntu-latest
+#     needs: build
+#     steps:
+#       - uses: actions/download-artifact@v4
+#         with:
+#           name: backend-image
+#       - uses: actions/download-artifact@v4
+#         with:
+#           name: frontend-image
+
+#       - name: Load images
+#         run: |
+#           zcat backend-image.tar.gz | docker load
+#           zcat frontend-image.tar.gz | docker load
+
+#       - name: Scan backend image
+#         uses: aquasecurity/trivy-action@0.28.0
+#         with:
+#           image-ref: resqpost-backend:ci
+#           format: sarif
+#           output: trivy-backend.sarif
+#           ignore-unfixed: true
+#           vuln-type: os,library
+
+#       - name: Scan frontend image
+#         uses: aquasecurity/trivy-action@0.28.0
+#         with:
+#           image-ref: resqpost-frontend:ci
+#           format: sarif
+#           output: trivy-frontend.sarif
+#           ignore-unfixed: true
+#           vuln-type: os,library
+
+#       - name: Upload SARIF (images)
+#         uses: github/codeql-action/upload-sarif@v3
+#         with:
+#           sarif_file: trivy-backend.sarif
+#       - name: Upload SARIF (images 2)
+#         uses: github/codeql-action/upload-sarif@v3
+#         with:
+#           sarif_file: trivy-frontend.sarif
 
   # --- Build images ---
   build:
