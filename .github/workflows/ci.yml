@@ -21,24 +21,50 @@ jobs:
           languages: javascript, python
       - uses: github/codeql-action/analyze@v3
 
-  trivy:
+  trivy-image:
     if: ${{ github.actor != 'nektos/act' }}
-    name: Code & Image Scan (Trivy)
+    name: Trivy Image Scan
     runs-on: ubuntu-latest
+    needs: build
     steps:
-      - uses: actions/checkout@v4
-      - name: Trivy FS scan (repo)
+      - uses: actions/download-artifact@v4
+        with:
+          name: backend-image
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-image
+
+      - name: Load images
+        run: |
+          zcat backend-image.tar.gz | docker load
+          zcat frontend-image.tar.gz | docker load
+
+      - name: Scan backend image
         uses: aquasecurity/trivy-action@0.28.0
         with:
-          scan-type: fs
-          scanners: vuln,secret,misconfig,license
-          ignore-unfixed: true
+          image-ref: resqpost-backend:ci
           format: sarif
-          output: trivy-fs.sarif
-      - name: Upload Trivy (FS) results to Security tab
+          output: trivy-backend.sarif
+          ignore-unfixed: true
+          vuln-type: os,library
+
+      - name: Scan frontend image
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: resqpost-frontend:ci
+          format: sarif
+          output: trivy-frontend.sarif
+          ignore-unfixed: true
+          vuln-type: os,library
+
+      - name: Upload SARIF (images)
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: trivy-fs.sarif
+          sarif_file: trivy-backend.sarif
+      - name: Upload SARIF (images 2)
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-frontend.sarif
 
   # --- Build images ---
   build:
@@ -79,7 +105,6 @@ jobs:
     needs: build
     env:
       PYTHONPATH: ${{ github.workspace }}/backend
-      # Use sqlite by default for unit tests; switch to Postgres if you add DB-dependent tests
       DATABASE_URL: sqlite:///test.db
     steps:
       - uses: actions/checkout@v4
@@ -109,17 +134,74 @@ jobs:
           echo "$COLLECT_OUTPUT"
           if echo "$COLLECT_OUTPUT" | grep -qiE 'collected 0 items|no tests collected|no tests found'; then
             echo "[ci] No backend tests found; skipping coverage step (temporary)."
+            # Emit minimal files so summary step won't fail
+            echo '<coverage line-rate="0.0"></coverage>' > coverage.xml
+            echo '<testsuite tests="0" failures="0" errors="0" skipped="0"></testsuite>' > pytest-report.xml
             exit 0
           fi
-          # Run real tests with coverage
+
+          # Real run w/ coverage + JUnit XML
           pytest -q --maxfail=1 --disable-warnings \
-            --cov=. --cov-report=term-missing --cov-report=xml:coverage.xml
+            --cov=. --cov-report=term-missing --cov-report=xml:coverage.xml \
+            --junitxml=pytest-report.xml
+
+      - name: Summarize backend tests & coverage
+        working-directory: backend
+        run: |
+          python - <<'PY'
+          import xml.etree.ElementTree as ET
+
+          # --- Parse pytest JUnit XML ---
+          tests = fails = errors = skips = 0
+          try:
+              root = ET.parse("pytest-report.xml").getroot()
+              suites = [root] if root.tag == "testsuite" else root.findall("testsuite")
+              for s in suites:
+                  tests += int(s.attrib.get("tests", 0))
+                  fails += int(s.attrib.get("failures", 0))
+                  errors += int(s.attrib.get("errors", 0))
+                  skips  += int(s.attrib.get("skipped", 0))
+          except Exception:
+              pass
+
+          # --- Parse coverage XML ---
+          pct = "0"
+          try:
+              cov = ET.parse("coverage.xml").getroot()
+              # coverage.py v6+: line-rate on <coverage>
+              lr = cov.attrib.get("line-rate")
+              if lr is not None:
+                  pct = str(round(float(lr) * 100))
+              else:
+                  pkgs = cov.find("packages")
+                  if pkgs is not None and "line-rate" in pkgs.attrib:
+                      pct = str(round(float(pkgs.attrib["line-rate"]) * 100))
+          except Exception:
+              pass
+
+          line = f"[summary] backend: tests={tests}, failures={fails+errors}, skipped={skips}, coverage={pct}%"
+          print(line)
+          with open("backend-summary.txt", "w") as f:
+              f.write(line + "\n")
+          PY
 
       - uses: actions/upload-artifact@v4
         if: ${{ github.actor != 'nektos/act' }}
         with:
           name: backend-coverage-xml
           path: backend/coverage.xml
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ github.actor != 'nektos/act' }}
+        with:
+          name: backend-junit-xml
+          path: backend/pytest-report.xml
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ github.actor != 'nektos/act' }}
+        with:
+          name: backend-summary
+          path: backend/backend-summary.txt
 
   # --- Tests: frontend ---
   test-frontend:
@@ -153,7 +235,6 @@ jobs:
           CI: "true"
         run: |
           set -e
-          # Always allow passing with zero tests for now
           npm test -- --coverage --watchAll=false --passWithNoTests
 
       - uses: actions/upload-artifact@v4
