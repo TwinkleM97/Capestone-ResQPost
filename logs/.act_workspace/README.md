@@ -110,6 +110,13 @@ REACT_APP_API_URL=http://127.0.0.1:5000
 
 ```
 ---
+### Test CICD Pipeline with act
+```bash
+ansible-playbook -i localhost, -c local ansible/ci.yml
+
+```
+
+---
 
 ## Quickstart (Ansible)
 
