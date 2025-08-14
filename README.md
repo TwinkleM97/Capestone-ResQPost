@@ -60,14 +60,16 @@ RESQPOST/
 
 If you're on Windows, use **VS Code Remote – WSL** (much faster than `/mnt/c` for Node/React):
 
-1. Copy the project into Linux:
+1. On Windows powershell Clone the project into Linux:
    ```bash
-   sudo apt-get install pv
-
-   mkdir -p ~/projects
-   rsync -a --info=progress2 "Path-to-ResQPost Folder" ~/projects/Capestone-ResQPost/ | pv -s $(du -sb "/mnt/c/Users/ajoshi/NextcloudV2/Downloads/Capstone Project/Capestone-ResQPost" | awk '{print $1}')
-   cd ~/projects/Capestone-ResQPost
+   git clone --branch develop https://github.com/TwinkleM97/Capestone-ResQPost.git ~/projects/Capestone-ResQPost
    ```
+  1.1 On wsl ubuntu 
+   ```bash
+   cd ~/projects/Capestone-ResQPost
+
+   ```
+
 2. Open in VS Code (WSL window):
    ```bash
    code .
@@ -125,6 +127,10 @@ ansible-playbook -i localhost, -c local ansible/ci.yml
 ### Standard (build once, then fast starts)
 ```bash
 # Bring everything up (builds frontend once, starts Flask + static build)
+# Inside WSL, from your project root
+rm -rf .venv
+python3 -m venv .venv
+
 ansible-playbook -i localhost, -c local ansible/up.yml
 # If prompted for sudo, add -K: ansible-playbook ... up.yml -K
 ```
@@ -132,6 +138,19 @@ ansible-playbook -i localhost, -c local ansible/up.yml
 ### Tear down (both modes)
 ```bash
 ansible-playbook -i localhost, -c local ansible/down.yml
+```
+
+**Optionally FULL RESET**
+```bash
+ansible-playbook ansible/down.yml -e remove_pgdata=true
+
+```
+
+**If permission issues, give the highest permissions**
+
+```bash
+sudo chown -R $(whoami):$(whoami) ~/projects/Capestone-ResQPost/Capestone-ResQPost/.pgdata
+
 ```
 
 **Endpoints**
