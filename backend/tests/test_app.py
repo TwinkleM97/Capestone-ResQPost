@@ -1,4 +1,3 @@
-# tests/test_app.py
 from app import db
 from models import Alert
 from sqlalchemy import text
@@ -14,8 +13,10 @@ def test_alerts_endpoint_exists(client):
     assert "json" in content_type.lower() or resp.data != b""
 
 def test_db_can_create_tables(client):
+    # ensure we have an active app context for direct DB access
     from app import db as _db
-    _db.session.execute(text("SELECT 1"))  # use text()
+    with client.application.app_context():
+        _db.session.execute(text("SELECT 1"))
     assert True
 
 def test_can_insert_alert_and_query(client):
