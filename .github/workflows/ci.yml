@@ -67,12 +67,21 @@ jobs:
 
             frontend:
               image: resqpost-frontend:ci
+              # If your image serves with nginx on port 80, change to: "3000:80"
+              ports:
+                - "3000:3000"
               environment:
+                HOST: 0.0.0.0
+                PORT: 3000
                 REACT_APP_API_URL: http://backend:5000
               depends_on:
                 - backend
-              ports:
-                - "3000:3000"
+              healthcheck:
+                # Try dev server on 3000; if not, try nginx on 80
+                test: ["CMD-SHELL", "(curl -fsS http://localhost:3000/ || curl -fsS http://localhost/) >/dev/null || exit 1"]
+                interval: 10s
+                timeout: 5s
+                retries: 24
           YAML
 
       # Build images explicitly to avoid buildx/bake "failed to find target default"
@@ -85,20 +94,34 @@ jobs:
       - name: Up (start, detached)
         run: docker compose -f docker-compose.ci.yml up -d
 
-      - name: Wait for frontend HTTP 2xx on /
+      # More robust frontend wait: try port 3000, then 80; show logs if it fails
+      - name: Wait for frontend healthy (HTTP 2xx)
         shell: bash
         run: |
           set -e
-          timeout 120 bash -c '
-            until code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/); do
-              echo "[wait] frontend not reachable yet..."
-              sleep 2
-            done
-            if [ "$code" -lt 200 ] || [ "$code" -ge 400 ]; then
-              echo "Expected 2xx from frontend /, got $code"
+          URL1="http://localhost:3000/"
+          URL2="http://localhost/"
+          deadline=$((SECONDS+240))  # up to 4 minutes (matches healthcheck retries)
+          until code=$(curl -s -o /dev/null -w "%{http_code}" "$URL1"); do
+            if [ $SECONDS -ge $deadline ]; then
+              echo "Timed out waiting for frontend on $URL1"
+              docker compose -f docker-compose.ci.yml ps || true
+              docker compose -f docker-compose.ci.yml logs frontend --no-color || true
               exit 1
             fi
-          '
+            echo "[wait] frontend not reachable yet on 3000..."
+            sleep 5
+          done
+          if [ "$code" -lt 200 ] || [ "$code" -ge 400 ]; then
+            # Try alternate port 80 (nginx-based images)
+            code2=$(curl -s -o /dev/null -w "%{http_code}" "$URL2" || echo 000)
+            if [ "$code2" -lt 200 ] || [ "$code2" -ge 400 ]; then
+              echo "Expected 2xx from frontend (${URL1} or ${URL2}); got $code / $code2"
+              docker compose -f docker-compose.ci.yml ps || true
+              docker compose -f docker-compose.ci.yml logs frontend --no-color || true
+              exit 1
+            fi
+          fi
 
       - name: Wait for Postgres healthy
         shell: bash
@@ -144,6 +167,7 @@ jobs:
             done
             if [ "$code" -ne 200 ]; then
               echo "Expected 200 from /api/alerts, got $code"
+              docker compose -f docker-compose.ci.yml logs backend --no-color || true
               exit 1
             fi
           '
