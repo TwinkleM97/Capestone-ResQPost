@@ -116,13 +116,8 @@ REACT_APP_API_URL=http://127.0.0.1:5000
 ### Standard (build once, then fast starts)
 ```bash
 # Bring everything up (builds frontend once, starts Flask + static build)
-ansible-playbook -i localhost, -c local ansible/up.yml -K
+ansible-playbook -i localhost, -c local ansible/up.yml
 # If prompted for sudo, add -K: ansible-playbook ... up.yml -K
-```
-
-### Fast Mode (no build, runs CRA dev server)
-```bash
-ansible-playbook -i localhost, -c local ansible/up_fast.yml
 ```
 
 ### Tear down (both modes)
