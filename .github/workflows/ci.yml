@@ -77,6 +77,10 @@ jobs:
     name: Test (backend) + coverage
     runs-on: ubuntu-latest
     needs: build
+    env:
+      PYTHONPATH: ${{ github.workspace }}/backend
+      # Use sqlite by default for unit tests; switch to Postgres if you add DB-dependent tests
+      DATABASE_URL: sqlite:///test.db
     steps:
       - uses: actions/checkout@v4
 
@@ -135,6 +139,12 @@ jobs:
         working-directory: frontend
         run: |
           if [ -f package-lock.json ]; then npm ci; else npm install; fi
+
+      # TEMP: ensure React Testing Library is available for render.test.js
+      - name: Ensure React Testing Library (CI only)
+        working-directory: frontend
+        run: |
+          npm install --no-save @testing-library/react @testing-library/jest-dom @testing-library/user-event
 
       - name: Run tests with coverage
         working-directory: frontend
